@@ -33,6 +33,13 @@ class Dataset(object):
         self._x_train = self.preprocess(self._x_train)
         self._x_test = self.preprocess(self._x_test)
 
+        if len(self._y_train.shape) == 2:
+            assert len(self._y_test.shape) == 2
+            assert self._y_train.shape[1] == self._y_test.shape[1] == 1
+
+            self._y_train = self._y_train[:, 0]
+            self._y_test = self._y_test[:, 0]
+
         assert self._x_train.shape[1:] == self._x_test.shape[1:]
         self._image_shape = self._x_train.shape[1:]
 
@@ -74,7 +81,9 @@ class Dataset(object):
 
 def get_dataset(name):
     if name == 'mnist':
-        return Dataset(datasets.mnist, 10)
+        return Dataset(datasets.mnist, num_labels=10)
+    if name == 'cifar10':
+        return Dataset(datasets.cifar10, num_labels=10)
     else:
         raise ValueError("Don't know {} name!".format(name))
 
