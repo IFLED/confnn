@@ -1,6 +1,7 @@
 import sys
 import time
 
+from matplotlib import pyplot as plt
 import numpy as np
 import tensorflow as tf
 
@@ -135,29 +136,29 @@ def run_train(build_func, train_config, dataset, build_func_kwargs=None):
     train_labels_node = tf.placeholder(tf.int64, shape=dataset.batch_y_shape(train_batch_size))
     fake_labels_node = tf.placeholder(tf.int64, shape=dataset.batch_y_shape(train_batch_size))
     eval_data = tf.placeholder(tf.float32, shape=dataset.batch_X_shape(eval_batch_size))
-    
+
     # Predictions for the current training minibatch.
     with tf.variable_scope("model", reuse=tf.AUTO_REUSE):
         train_prediction, loss = build_func(train_data_node, training=True, train_labels_node=train_labels_node,
                                             num_labels=dataset.num_labels, **build_func_kwargs)
-    
+
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
             optimizer = optimizer.minimize(loss, global_step=batch_var)
-    
+
     # Predictions for the test and validation, which we'll compute less often.
     with tf.variable_scope("model", reuse=True):
             eval_prediction, _ = build_func(eval_data, training=False, train_labels_node=fake_labels_node,
                                             num_labels=dataset.num_labels, **build_func_kwargs)
-    
+
     stdout_lines = []
-    
+
     # Create a local session to run the training.
     start_time = time.time()
 
     train_metrics = []
-    
-    with tf.Session() as sess:    
+
+    with tf.Session() as sess:
     	# Run all the initializers to prepare the trainable parameters.
     	tf.global_variables_initializer().run()
     	print('Initialized!')
@@ -175,7 +176,7 @@ def run_train(build_func, train_config, dataset, build_func_kwargs=None):
                          train_labels_node: batch_labels}
             # Run the optimizer to update weights.
             sess.run(optimizer, feed_dict=feed_dict)
-    
+
             # print some extra information once reach the evaluation frequency
             if step % eval_frequency == 0:
                 # fetch some extra nodes' data
@@ -191,7 +192,7 @@ def run_train(build_func, train_config, dataset, build_func_kwargs=None):
 
                 elapsed_time = time.time() - start_time
                 start_time = time.time()
-    
+
                 stdout_lines.append('Step %d (epoch %.2f), %.1f ms\n' %
                       (step, float(step) * train_batch_size / dataset.train_size,
                        1000 * elapsed_time / eval_frequency))
@@ -204,7 +205,7 @@ def run_train(build_func, train_config, dataset, build_func_kwargs=None):
                 print(stdout_lines[-1].strip())
                 sys.stdout.flush()
                 # return stdout_lines
-    
+
         # Finally print the result!
     	test_error = error_rate(eval_in_batches(test_data, sess, eval_batch_size,
                                                 eval_data, eval_prediction),
@@ -215,4 +216,28 @@ def run_train(build_func, train_config, dataset, build_func_kwargs=None):
     history = test_error, train_metrics
 
     return history, stdout_lines
+
+
+def plot_error_on_iterations(history, ranges, iterations, only_val=True):
+    test_error, train_metrics = history
+    losses, lrs, train_errors, val_errors = zip(*train_metrics)
+
+    def plot_error_on_data(data, ranges, iterations, label):
+        left, right = ranges
+        if left is None:
+            left = 0
+        if right is None:
+            right = data.shape[0]
+        xs = list(range(left, right))
+        for it in iterations:
+            plt.plot(xs, data[left:right, it], label='{} iter {}'.format(label, it))
+
+    if not only_val:
+        train_errors = np.array(train_errors)
+        plot_error_on_data(train_errors, ranges, iterations, 'train')
+
+    val_errors = np.array(val_errors)
+    plot_error_on_data(val_errors, ranges, iterations, 'val')
+
+    plt.legend()
 
